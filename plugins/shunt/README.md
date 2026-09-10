@@ -1,22 +1,98 @@
 # shunt
 
 A plugin that delegates bulk file reads and boilerplate generation. In Codex,
-the lead is Astra at medium effort and the worker is OpenCode
+the launcher defaults to an Astra/medium lead and an OpenCode worker:
 `zai-coding-plan/glm-5.3-flash` at `max`, using the Z.AI Coding Plan.
+Choose a different worker harness, model, and effort without changing the lead.
 Claude Code keeps the existing AiKA route and read hooks.
 
 ## Choose a route
 
 | Host | Lead | Worker | Delegation trigger |
 | --- | --- | --- | --- |
-| Codex | `gpt-6-astra` / `medium` with the launcher | OpenCode `zai-coding-plan/glm-5.3-flash` / `max` | The bulk-reader and code-writer skills |
+| Codex | `gpt-6-astra` / `medium` with the launcher | OpenCode: configurable model/variant; defaults to GLM-5.3-Flash/max | The bulk-reader and code-writer skills |
+| Codex | Same lead | Codex: configurable model/effort; defaults to Luna/medium | The same skills |
 | Claude Code | Your current Claude model | AiKA bulk-reader and code-writer modes | Skills, plus hooks for large reads |
 
 Codex support is skill-driven. The Claude Code Read/Bash hooks do not enforce
 routing in Codex. Installing the plugin alone does not select a lead model or
 turn every task into delegated work.
 
-## Codex + OpenCode
+## Worker selection
+
+The launcher keeps the lead on `gpt-6-astra` / `medium`. Configure the worker
+independently, either per launch or per delegation:
+
+```bash
+# OpenCode + GLM on the Z.AI Coding Plan
+SHUNT_BACKEND=opencode \
+SHUNT_WORKER_MODEL=zai-coding-plan/glm-5.3-flash \
+SHUNT_WORKER_EFFORT=max \
+  plugins/shunt/scripts/codex-shunt -C /absolute/path/to/project 'Use shunt.'
+
+# OpenCode + DeepSeek on OpenRouter (requires OpenRouter auth in OpenCode)
+SHUNT_BACKEND=opencode \
+SHUNT_WORKER_MODEL=openrouter/deepseek/deepseek-v4.1-flash \
+SHUNT_WORKER_EFFORT=max \
+  plugins/shunt/scripts/codex-shunt -C /absolute/path/to/project 'Use shunt.'
+
+# Codex + Luna (uses Codex auth; OpenCode is not required)
+SHUNT_BACKEND=codex \
+SHUNT_WORKER_MODEL=gpt-5.6-luna \
+SHUNT_WORKER_EFFORT=high \
+  plugins/shunt/scripts/codex-shunt -C /absolute/path/to/project 'Use shunt.'
+```
+
+These examples run from the repository root. The skills preserve the configured
+worker selection instead of hardcoding GLM. `SHUNT_WORKER_MODEL` must be a model
+ID understood by the selected harness: OpenCode uses `provider/model`; Codex
+uses its own model ID. When switching harnesses, update the model too if you
+previously set it explicitly. There is no cross-harness fallback.
+
+Explicit per-launch environment values override saved Codex worker settings
+one key at a time. Omitted settings keep the saved values, or the defaults when
+none are configured. Unrelated shell environment settings are preserved.
+
+Effort maps to OpenCode's `--variant` or Codex's `model_reasoning_effort`.
+Luna's checked catalog offers `low`, `medium`, `high`, `xhigh`, and `max`.
+Other models can expose different values; inspect their catalog rather than
+assuming every model supports `max`. An explicitly empty
+`SHUNT_WORKER_EFFORT=''` omits the effort flag/config override and uses the
+harness/model default. An empty model ID is an error.
+
+### Persistent Codex app settings
+
+Merge these entries into the existing `[shell_environment_policy.set]` table
+in your Codex configuration, then start a new thread:
+
+```toml
+[shell_environment_policy.set]
+SHUNT_BACKEND = "codex"
+SHUNT_WORKER_MODEL = "gpt-5.6-luna"
+SHUNT_WORKER_EFFORT = "high"
+```
+
+Keep the main model on Astra/medium in the app. The worker settings are passed
+to shell calls and do not change the lead's model. Do not create a duplicate
+TOML table or replace unrelated environment entries. If a custom shell
+allowlist filters environment variables, include these three names as well.
+
+### Codex worker behavior
+
+Codex workers run `codex exec` in a fresh temporary directory with the selected
+model/effort, existing authentication, `--ephemeral`, and a read-only sandbox.
+They ignore the lead's user configuration and disable shell tools, apps,
+subagents, image viewing, and web search. They receive only the selected task
+corpus from shunt and are instructed to return text without using tools.
+This is a worker harness, not another Astra lead that recursively delegates.
+
+Only a completed turn with a nonempty `--output-last-message` file is accepted.
+Intermediate commentary is not mistaken for generated code. Both harnesses
+share the payload/response limits, timeouts, and cancellation handling.
+Sending SIGTERM or SIGINT to a public script's shell PID forwards cancellation
+to its runner, waits for worker-tree cleanup, and leaves existing targets intact.
+
+## Default route: Codex + OpenCode
 
 ### Prerequisites
 
@@ -61,7 +137,7 @@ change the model of an existing conversation.
 ```mermaid
 flowchart LR
     A["Codex: plan and select files"] --> B["Shunt: prompt + selected files"]
-    B --> C["OpenCode: GLM-5.3-Flash / max"]
+    B --> C["Worker: selected harness / model / effort"]
     C --> D["Summary or generated code"]
     D --> E["Codex: verify, review, and apply"]
 ```
@@ -91,7 +167,7 @@ Pass multiple files after `--paths` for a cross-file question. The answer goes
 to stdout; successful calls report this metadata on stderr:
 
 ```text
-[shunt: zai-coding-plan/glm-5.3-flash | max | session <session-id>]
+[shunt: opencode | zai-coding-plan/glm-5.3-flash | max | session <session-id>]
 ```
 
 An answer is not a verification result. Check the named functions, values, and
@@ -121,9 +197,9 @@ writes a target. It rejects responses over 4 MB and bounds each invocation with
 | --- | --- |
 | Codex does not discover the shunt skills | Confirm `codex plugin add shunt@portal` succeeded, then start a new thread. |
 | The lead is still on another model or effort | Use `scripts/codex-shunt` from the plugin directory, or select Astra / Medium in the app. |
-| A direct script call tries Portal/AiKA | Prefix the command with `SHUNT_BACKEND=opencode`. AiKA remains the default for direct calls. |
-| `FileSystem.open (.../opencode.log)` or sandbox-blocked network access | Use the host's normal command-escalation flow for the same script. OpenCode needs local log/state writes and network access; do not disable the sandbox globally. |
-| Missing model, authentication failure, or exhausted quota | Check `opencode models zai-coding-plan --verbose` and `opencode auth list`; resolve the account/catalog issue before retrying. Shunt does not switch providers. |
+| A direct script call tries Portal/AiKA | Set `SHUNT_BACKEND=opencode` or `SHUNT_BACKEND=codex`. AiKA remains the default for unconfigured direct calls. |
+| `FileSystem.open (.../opencode.log)` or sandbox-blocked network access | Use the host's normal command-escalation flow for the same script. The selected harness needs local state writes and network access; do not disable the sandbox globally. |
+| Missing model, authentication failure, or exhausted quota | For OpenCode, check the selected provider with `opencode models` and `opencode auth list`; for Codex, check its model selection and login. Resolve the issue before retrying. Shunt does not switch providers. |
 | Request exceeds the payload limit | Select fewer or smaller files, or explicitly set `SHUNT_MAX_PAYLOAD_BYTES` for this command. |
 | Invocation times out | Split the work into a smaller request, or increase `SHUNT_TIMEOUT_SECONDS` for a deliberately larger task. |
 | Summary contains a wrong claim | Verify against source and correct it in Codex; successful transport does not establish correctness. |
@@ -223,7 +299,7 @@ shunt/
 ├── scripts/
 │   ├── lib/
 │   │   ├── aika.sh          # Portal aika:invoke-chat transport
-│   │   ├── opencode.py      # Tool-free GLM worker transport
+│   │   ├── worker.py        # Configurable OpenCode/Codex worker runner
 │   │   └── transport.sh     # Backend selection; AiKA remains the default
 │   ├── bulk-read            # Selected files + question → summary
 │   ├── code-write           # Spec + reference → generated code
@@ -235,7 +311,7 @@ shunt/
 │       └── SKILL.md         # When/how to call code-write
 └── evals/
     ├── run.sh                # Runs hook + transport evals
-    ├── opencode-evals.py     # OpenCode routing, errors, timeout, target preservation
+    ├── worker-evals.py       # Both harnesses, configuration, errors, cancellation
     ├── hook-evals.json       # Read hook test cases (17)
     ├── bash-hook-evals.json  # Bash hook test cases (17)
     ├── transport-evals.sh    # scripts/lib/aika.sh against a stubbed CLI (17)
@@ -248,7 +324,8 @@ shunt/
 
 Examples in this section assume the plugin's `scripts/` directory is on `PATH`.
 Otherwise use the script's absolute path. Prefix calls with
-`SHUNT_BACKEND=opencode` for GLM; unprefixed calls use AiKA.
+`SHUNT_BACKEND=opencode` or `SHUNT_BACKEND=codex` for CLI workers;
+unconfigured calls use AiKA.
 
 ### bulk-read
 
@@ -279,8 +356,8 @@ code-write --spec "Generate a config stub" --reference config/existing.yaml
 ### One shot per call
 
 Every call stands alone. For a follow-up, pass the needed files again.
-`aika:invoke-chat` is ephemeral; OpenCode stores a local session, but shunt does
-not resume it. Neither route adds the complete file corpus to the lead's context
+`aika:invoke-chat` is ephemeral; OpenCode stores a local session and Codex
+workers use ephemeral sessions. Shunt does not resume workers. Neither route adds the complete file corpus to the lead's context
 through the delegation call. Re-sending files still consumes worker usage.
 
 ## Hooks (Claude Code only)
@@ -308,17 +385,19 @@ in the `env` block in `.claude/settings.json`.
 
 | Variable | Default | Applies to | Purpose |
 | --- | --- | --- | --- |
-| `SHUNT_BACKEND` | `aika` | Both | `opencode` selects GLM-5.3-Flash/max on the Z.AI Coding Plan |
+| `SHUNT_BACKEND` | Direct scripts: `aika`; Codex launcher/skills: `opencode` | All | Worker harness: `opencode`, `codex`, or the existing `aika` route |
+| `SHUNT_WORKER_MODEL` | OpenCode: `zai-coding-plan/glm-5.3-flash`; Codex: `gpt-5.6-luna` | OpenCode/Codex | Model ID for the selected harness |
+| `SHUNT_WORKER_EFFORT` | OpenCode: `max`; Codex: `medium` | OpenCode/Codex | Variant/reasoning effort; empty string omits the override |
 | `SHUNT_MIN_LINES` | `350` | Claude hooks | Line count above which a full-file read is redirected |
 | `SHUNT_PORTAL_INSTANCE` | CLI default | AiKA | Portal instance name or URL |
 | `PORTAL_CLI_BIN` | `portal-cli`, else `npx` | AiKA | Override how portal-cli is launched |
-| `SHUNT_MAX_PAYLOAD_BYTES` | OpenCode: `400000`; AiKA: `400000` (`120000` on Linux) | Both | Input ceiling; AiKA uses an argv JSON payload, OpenCode uses message bytes on stdin |
-| `SHUNT_TIMEOUT_SECONDS` | `180` | Both | Timeout for one invocation |
+| `SHUNT_MAX_PAYLOAD_BYTES` | OpenCode/Codex: `400000`; AiKA: `400000` (`120000` on Linux) | All | Input ceiling; AiKA uses an argv JSON payload, CLI workers use message bytes on stdin |
+| `SHUNT_TIMEOUT_SECONDS` | `180` | All | Timeout for one invocation |
 | `SHUNT_BULK_READER_MODE_ID` | — | AiKA | Pin a mode ID if the name is ambiguous |
 | `SHUNT_CODE_WRITER_MODE_ID` | — | AiKA | Pin a mode ID if the name is ambiguous |
 
-The OpenCode worker model and variant are fixed in the transport; there is no
-`SHUNT_MODEL` override. The Codex launcher controls the lead model separately.
+Worker settings do not affect the lead model. The AiKA route keeps its existing
+server-side mode configuration and ignores the CLI-worker model/effort settings.
 
 ## What doesn't get delegated
 
@@ -334,16 +413,19 @@ The plugin is designed to know when NOT to delegate:
 From `plugins/shunt/`:
 
 ```bash
-# 51 hook/AiKA evals + 7 OpenCode/launcher tests; no provider calls
+# 51 hook/AiKA evals + 13 worker/launcher tests; no provider calls
 bash evals/run.sh
 
 # Also re-measure token savings against the real modes — needs portal-cli auth
 bash evals/run.sh --benchmark
 ```
 
-The default suite uses stubbed CLIs and needs Bash, jq, and Python 3. It covers
+The default suite uses stubbed CLIs and needs Bash, jq, Python 3, and `ps`
+access for process-lifecycle checks. It covers
 model/variant routing, argument preservation, payload validation, timeout,
-incomplete/error responses, and preservation of an existing target on failure.
+incomplete/error responses, final-answer extraction, and preservation of existing
+targets on failure or cancellation. Cancellation checks signal only the public
+shell PID, across both harnesses, both scripts, and SIGTERM/SIGINT.
 It does not check live account access; use the read-only example above for that.
 
 ## Benchmarks (Claude Code + AiKA)

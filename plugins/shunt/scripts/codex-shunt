@@ -1,4 +1,20 @@
 #!/bin/bash
 # Launch the lead; leave the user's global model and approval settings intact.
+worker_settings=$(python3 - <<'PY'
+import json
+import os
+
+for key in ("SHUNT_BACKEND", "SHUNT_WORKER_MODEL", "SHUNT_WORKER_EFFORT"):
+    if key in os.environ:
+        print(f"shell_environment_policy.set.{key}={json.dumps(os.environ[key])}")
+PY
+) || exit 1
+worker_args=()
+while IFS= read -r setting; do
+  [ -n "$setting" ] && worker_args+=(-c "$setting")
+done <<< "$worker_settings"
+# Explicit per-launch settings override saved worker settings one key at a time.
+# With no override, the user's saved configuration still takes precedence.
+export SHUNT_BACKEND="${SHUNT_BACKEND:-opencode}"
 exec codex --model gpt-6-astra \
-  -c 'model_reasoning_effort="medium"' "$@"
+  -c 'model_reasoning_effort="medium"' "${worker_args[@]}" "$@"

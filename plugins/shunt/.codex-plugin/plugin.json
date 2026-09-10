@@ -1,7 +1,7 @@
 {
   "name": "shunt",
-  "version": "0.2.0+codex.20260910154558",
-  "description": "Delegate bulk reading and code generation from Codex to OpenCode GLM-5.3-Flash on the Z.AI Coding Plan.",
+  "version": "0.2.0+codex.20260910162001",
+  "description": "Delegate bulk reading and code generation with a selectable OpenCode or Codex worker, model, and reasoning effort.",
   "author": {
     "name": "Spotify"
   },
@@ -9,8 +9,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Shunt",
-    "shortDescription": "Astra lead with a GLM worker",
-    "longDescription": "Keep reasoning and review in Codex while delegating bulk reading and code generation to OpenCode GLM-5.3-Flash at max effort.",
+    "shortDescription": "Astra lead with your choice of worker",
+    "longDescription": "Keep decisions and review in Codex while selecting the worker harness, model, and reasoning effort. Supports OpenCode and Codex; defaults to OpenCode GLM-5.3-Flash/max.",
     "developerName": "Spotify",
     "category": "Developer Tools",
     "capabilities": [
@@ -19,7 +19,7 @@
       "CLI"
     ],
     "defaultPrompt": [
-      "Use shunt to delegate bulk reading to OpenCode while keeping decisions and review in Codex."
+      "Use shunt with my chosen worker harness, model, and reasoning effort while keeping decisions and review in Codex."
     ]
   }
 }

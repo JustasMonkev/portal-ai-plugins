@@ -1,14 +1,14 @@
 #!/bin/bash
-# Keep AiKA as the default; Codex skills explicitly select OpenCode.
+# Keep AiKA as the direct-call default; Codex skills preserve worker selection.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/aika.sh"
 
 case "${SHUNT_BACKEND:-aika}" in
   aika) ;;
-  opencode)
-    SHUNT_OPENCODE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/opencode.py"
+  opencode|codex)
+    SHUNT_WORKER_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worker.py"
     shunt_preflight() {
-      command -v python3 >/dev/null && command -v opencode >/dev/null || {
-        echo "Error: OpenCode delegation requires python3 and opencode." >&2
+      command -v python3 >/dev/null && command -v "$SHUNT_BACKEND" >/dev/null || {
+        echo "Error: $SHUNT_BACKEND delegation requires python3 and $SHUNT_BACKEND." >&2
         return 1
       }
     }
@@ -27,7 +27,7 @@ case "${SHUNT_BACKEND:-aika}" in
       trap 'shunt_cancel_worker 143' TERM
       # Waiting on a background child lets Bash handle a shell-only signal
       # immediately, forward it to Python, and wait for worker-tree cleanup.
-      python3 "$SHUNT_OPENCODE_SCRIPT" "$1" "$2" &
+      python3 "$SHUNT_WORKER_SCRIPT" "$SHUNT_BACKEND" "$1" "$2" &
       SHUNT_WORKER_PID=$!
       wait "$SHUNT_WORKER_PID"
       rc=$?
@@ -35,5 +35,5 @@ case "${SHUNT_BACKEND:-aika}" in
       return "$rc"
     }
     ;;
-  *) echo "Error: SHUNT_BACKEND must be aika or opencode." >&2; exit 1 ;;
+  *) echo "Error: SHUNT_BACKEND must be aika, opencode, or codex." >&2; exit 1 ;;
 esac

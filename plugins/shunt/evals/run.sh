@@ -307,7 +307,7 @@ run_benchmarks() {
 run_suite "$SCRIPT_DIR/../hooks/check-file-size" "$SCRIPT_DIR/hook-evals.json" "Read hook (check-file-size)"
 run_suite "$SCRIPT_DIR/../hooks/check-bash-read" "$SCRIPT_DIR/bash-hook-evals.json" "Bash hook (check-bash-read)"
 run_transport_suite
-python3 "$SCRIPT_DIR/opencode-evals.py"
+python3 "$SCRIPT_DIR/worker-evals.py"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"

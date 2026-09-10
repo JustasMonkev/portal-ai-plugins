@@ -20,11 +20,11 @@ diagnostics, and invoke Portal actions.
 | Plugin | Use it for | Hosts | Requirements |
 | --- | --- | --- | --- |
 | **portal** | Catalog search, service briefings, diagnostics, and Portal actions | Claude Code, Codex, Cursor | Portal CLI and access to a Portal instance |
-| **shunt** | Delegating bulk reads and predictable code generation | Codex, Claude Code | Codex: OpenCode + Z.AI Coding Plan; Claude Code: Portal + AiKA |
+| **shunt** | Delegating bulk reads and predictable code generation | Codex, Claude Code | Codex: your chosen worker CLI/account; Claude Code: Portal + AiKA |
 
 The plugins have separate jobs. **portal** connects your coding agent to Spotify
 Portal. **shunt** delegates selected work to a worker model while the main agent
-keeps planning, decisions, and review. Shunt's Codex/OpenCode route does **not**
+keeps planning, decisions, and review. Shunt's OpenCode and Codex worker routes do **not**
 require a Portal account or installation of the portal plugin.
 
 ## Installation
@@ -83,11 +83,11 @@ repository in your Cursor team marketplace, then install Spotify Portal from
 | `code-writer` | Generate tests, configuration, or boilerplate from an existing reference | Review the generated file, apply changes, and run checks |
 
 With Codex, shunt uses **Astra / medium** as the lead through its launcher and
-**OpenCode GLM-5.3-Flash / max** as the worker. With Claude Code, it keeps the
+**OpenCode GLM-5.3-Flash / max** as the default worker. With Claude Code, it keeps the
 existing AiKA route. OpenCode is a one-shot reader/generator here, not an
 autonomous editor with access to your entire project.
 
-## Quick start: Codex with an OpenCode worker
+## Quick start: Astra with the default OpenCode worker
 
 Use a local checkout containing the Codex shunt implementation. The commands
 below run from the repository root; installation of the upstream Portal plugin
@@ -146,6 +146,43 @@ quota but does not edit the selected file. Direct script calls need
 See the [shunt guide](plugins/shunt/README.md) for code-generation examples,
 the delegation flow, configuration, and troubleshooting. Claude Code users can
 follow the [AiKA setup](plugins/shunt/README.md#claude-code--aika-how-it-works).
+
+## Switch the worker without changing Astra
+
+The lead remains **Codex / Astra / medium**. Select the worker harness, model,
+and reasoning effort independently with environment variables before launching:
+
+```bash
+# Astra lead → OpenCode worker → DeepSeek on OpenRouter / max
+SHUNT_BACKEND=opencode \
+SHUNT_WORKER_MODEL=openrouter/deepseek/deepseek-v4.1-flash \
+SHUNT_WORKER_EFFORT=max \
+  plugins/shunt/scripts/codex-shunt -C /absolute/path/to/your/project \
+  'Use shunt with my configured worker.'
+
+# Astra lead → Codex worker → Luna / high
+SHUNT_BACKEND=codex \
+SHUNT_WORKER_MODEL=gpt-5.6-luna \
+SHUNT_WORKER_EFFORT=high \
+  plugins/shunt/scripts/codex-shunt -C /absolute/path/to/your/project \
+  'Use shunt with my configured worker.'
+```
+
+Use the first example only after configuring OpenRouter authentication in
+OpenCode. The second uses existing Codex authentication and does not require
+OpenCode. Neither command changes the lead model or global defaults.
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| `SHUNT_BACKEND` | Worker harness | `opencode` in the launcher/skills; `aika` for standalone unconfigured scripts |
+| `SHUNT_WORKER_MODEL` | Model ID understood by that harness | OpenCode: `zai-coding-plan/glm-5.3-flash`; Codex: `gpt-5.6-luna` |
+| `SHUNT_WORKER_EFFORT` | OpenCode variant or Codex reasoning effort | OpenCode: `max`; Codex: `medium` |
+
+An explicitly empty `SHUNT_WORKER_EFFORT=''` omits the reasoning override.
+Use only efforts supported by the selected model; unsupported selections fail
+rather than falling back. These variables also work on direct `bulk-read` and
+`code-write` calls. See [persistent Codex app settings](plugins/shunt/README.md#persistent-codex-app-settings)
+for configuration across threads.
 
 ## Portal CLI
 
