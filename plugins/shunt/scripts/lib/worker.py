@@ -57,7 +57,7 @@ def codex_command(model, effort, mode, answer_file):
         "approval_policy": "never",
         "features.shell_tool": False,
         "features.apps": False,
-        "agents.enabled": False,
+        "features.multi_agent": False,
         "tools.view_image": False,
         "web_search": "disabled",
         "developer_instructions": PROMPTS[mode],

@@ -1,6 +1,6 @@
 {
   "name": "shunt",
-  "version": "0.2.0+codex.20260910162001",
+  "version": "0.2.0+codex.20260910164042",
   "description": "Delegate bulk reading and code generation with a selectable OpenCode or Codex worker, model, and reasoning effort.",
   "author": {
     "name": "Spotify"

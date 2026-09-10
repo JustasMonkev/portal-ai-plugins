@@ -143,8 +143,10 @@ class WorkerEvals(unittest.TestCase):
         self.assertIn("--ignore-user-config", args)
         self.assertEqual(args[args.index("--sandbox") + 1], "read-only")
         for setting in ('approval_policy="never"', 'features.shell_tool=false',
-                        'features.apps=false', 'agents.enabled=false', 'web_search="disabled"'):
+                        'features.apps=false', 'features.multi_agent=false', 'web_search="disabled"'):
             self.assertIn(setting, args)
+        # Older Codex versions interpret agents entries as role-definition tables.
+        self.assertNotIn('agents.enabled=false', args)
         self.assertIn(self.reference.read_text(), captured["input"])
         self.assertFalse(Path(captured["cwd"]).exists())
         self.assertIn("test-session", result.stderr)
