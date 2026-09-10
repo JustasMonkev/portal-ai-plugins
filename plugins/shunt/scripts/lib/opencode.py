@@ -98,8 +98,17 @@ def invoke(mode, message_file):
     return answer
 
 
+def cancel(signum, frame):
+    # A process-group signal can also be forwarded by the public shell.
+    # Do not let a second signal interrupt the finally block's cleanup.
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    sys.exit(128 + signum)
+
+
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
+    signal.signal(signal.SIGTERM, cancel)
+    signal.signal(signal.SIGINT, cancel)
     try:
         print(invoke(sys.argv[1], Path(sys.argv[2])))
     except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:

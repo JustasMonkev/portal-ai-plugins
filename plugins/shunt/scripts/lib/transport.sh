@@ -12,8 +12,27 @@ case "${SHUNT_BACKEND:-aika}" in
         return 1
       }
     }
+    shunt_cancel_worker() {
+      trap '' INT TERM
+      local pid="${SHUNT_WORKER_PID:-$!}"
+      if [ -n "$pid" ]; then
+        kill -TERM "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+      fi
+      exit "$1"
+    }
     shunt_invoke() {
-      python3 "$SHUNT_OPENCODE_SCRIPT" "$1" "$2"
+      local SHUNT_WORKER_PID="" rc
+      trap 'shunt_cancel_worker 130' INT
+      trap 'shunt_cancel_worker 143' TERM
+      # Waiting on a background child lets Bash handle a shell-only signal
+      # immediately, forward it to Python, and wait for worker-tree cleanup.
+      python3 "$SHUNT_OPENCODE_SCRIPT" "$1" "$2" &
+      SHUNT_WORKER_PID=$!
+      wait "$SHUNT_WORKER_PID"
+      rc=$?
+      trap - INT TERM
+      return "$rc"
     }
     ;;
   *) echo "Error: SHUNT_BACKEND must be aika or opencode." >&2; exit 1 ;;

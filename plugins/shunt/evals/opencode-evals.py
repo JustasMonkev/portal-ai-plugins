@@ -3,21 +3,31 @@
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 
 
 PLUGIN = Path(__file__).resolve().parents[1]
 STUB = '''#!/usr/bin/env python3
-import json, os, sys, time
+import json, os, subprocess, sys, time
 from pathlib import Path
 Path(os.environ["CAPTURE"]).write_text(json.dumps({
     "args": sys.argv[1:], "input": sys.stdin.read(),
     "config": json.loads(os.environ["OPENCODE_CONFIG_CONTENT"]),
     "permission": os.environ["OPENCODE_PERMISSION"], "cwd": os.getcwd(),
+    "pid": os.getpid(), "runner_pid": os.getppid(),
 }))
 mode = os.environ.get("RESPONSE", "ok")
+if mode == "cancel":
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    capture = Path(os.environ["CAPTURE"])
+    data = json.loads(capture.read_text())
+    data["child_pid"] = child.pid
+    capture.write_text(json.dumps(data))
+    time.sleep(30)
 if mode == "timeout": time.sleep(30)
 if mode == "exit":
     print("subscription unavailable", file=sys.stderr)
@@ -111,6 +121,60 @@ class OpenCodeEvals(unittest.TestCase):
         self.reference.unlink()
         self.assertNotEqual(self.run_script().returncode, 0)
         self.assertFalse(self.capture.exists())
+
+    def test_shell_pid_sigterm_stops_runner_and_worker_tree(self):
+        for script in ("bulk-read", "code-write"):
+            with self.subTest(script=script):
+                self.capture.unlink(missing_ok=True)
+                self.env["RESPONSE"] = "cancel"
+                target = self.root / "existing.txt"
+                target.write_text("keep existing content")
+                args = (["--question", "Explain", "--paths", str(self.reference)]
+                        if script == "bulk-read" else
+                        ["--spec", "Generate", "--reference", str(self.reference),
+                         "--target", str(target)])
+                process = subprocess.Popen(
+                    ["bash", str(PLUGIN / "scripts" / script), *args], env=self.env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
+                )
+                captured = {}
+                try:
+                    deadline = time.monotonic() + 3
+                    while time.monotonic() < deadline:
+                        try:
+                            captured = json.loads(self.capture.read_text())
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            pass
+                        if "child_pid" in captured:
+                            break
+                        time.sleep(0.02)
+                    self.assertIn("child_pid", captured, "worker did not start")
+                    process.send_signal(signal.SIGTERM)  # Only the public shell PID.
+                    process.wait(timeout=3)
+                    pids = [captured[key] for key in ("runner_pid", "pid", "child_pid")]
+                    deadline = time.monotonic() + 2
+                    while time.monotonic() < deadline:
+                        alive = []
+                        for pid in pids:
+                            state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
+                                                   capture_output=True, text=True).stdout.strip()
+                            if state and not state.startswith("Z"):
+                                alive.append(pid)
+                        if not alive:
+                            break
+                        time.sleep(0.02)
+                    self.assertEqual(alive, [], "cancellation left worker processes running")
+                    self.assertEqual(process.returncode, 143)
+                    self.assertFalse(Path(captured["cwd"]).exists())
+                    self.assertEqual(target.read_text(), "keep existing content")
+                finally:
+                    for group in (process.pid, captured.get("pid")):
+                        if group:
+                            try:
+                                os.killpg(group, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                    process.communicate(timeout=3)
 
     def test_codex_launcher_selects_astra_medium_and_preserves_arguments(self):
         stub = self.root / "codex"
