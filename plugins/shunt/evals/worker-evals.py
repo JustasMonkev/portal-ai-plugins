@@ -194,6 +194,33 @@ class WorkerEvals(unittest.TestCase):
                 self.assertFalse(self.capture.exists())
                 self.env[key] = "400000" if "PAYLOAD" in key else "5"
 
+    def test_linux_payload_defaults_and_overrides(self):
+        uname = self.root / "uname"
+        uname.write_text("#!/bin/sh\necho Linux\n")
+        uname.chmod(0o755)
+        self.env["PORTAL_CLI_BIN"] = "python3"  # Rejected AiKA payloads never invoke it.
+        for backend, limit, size in product(
+                ("opencode", "codex", "aika"), (None, "150000"),
+                (200000, 400001)):
+            with self.subTest(backend=backend, limit=limit, size=size):
+                self.env["SHUNT_BACKEND"] = backend
+                self.env.pop("SHUNT_MAX_PAYLOAD_BYTES", None)
+                if limit is not None:
+                    self.env["SHUNT_MAX_PAYLOAD_BYTES"] = limit
+                self.reference.write_text("x" * size)
+                self.capture.unlink(missing_ok=True)
+                # allexport exposes shell defaults to Python, as in managed shells.
+                result = subprocess.run(
+                    ["bash", "-a", str(PLUGIN / "scripts" / "bulk-read"),
+                     "--question", "Explain", "--paths", str(self.reference)],
+                    env=self.env, capture_output=True, text=True, timeout=10)
+                succeeds = backend != "aika" and limit is None and size == 200000
+                self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+                self.assertEqual(self.capture.exists(), succeeds)
+                if not succeeds:
+                    expected_limit = limit or ("120000" if backend == "aika" else "400000")
+                    self.assertIn(expected_limit, result.stderr)
+
     def test_invalid_backend_fails_without_fallback(self):
         self.env["SHUNT_BACKEND"] = "typo"
         result = self.run_script()

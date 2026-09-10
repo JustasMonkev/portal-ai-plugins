@@ -413,7 +413,7 @@ The plugin is designed to know when NOT to delegate:
 From `plugins/shunt/`:
 
 ```bash
-# 51 hook/AiKA evals + 13 worker/launcher tests; no provider calls
+# 51 hook/AiKA evals + 14 worker/launcher tests; no provider calls
 bash evals/run.sh
 
 # Also re-measure token savings against the real modes — needs portal-cli auth
