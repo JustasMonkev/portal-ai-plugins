@@ -2,7 +2,7 @@
 # Delegate boilerplate generation to AiKA code-writer mode
 # Usage: code-write --spec "write tests for UserService" --reference ref.test.ts --target out.test.ts
 
-. "$(cd "$(dirname "$0")" && pwd)/lib/aika.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib/transport.sh"
 
 MODE_NAME="code-writer"
 

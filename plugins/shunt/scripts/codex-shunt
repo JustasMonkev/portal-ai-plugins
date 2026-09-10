@@ -1,0 +1,4 @@
+#!/bin/bash
+# Launch the lead; leave the user's global model and approval settings intact.
+exec codex --model gpt-6-astra \
+  -c 'model_reasoning_effort="medium"' "$@"

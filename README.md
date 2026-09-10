@@ -15,7 +15,7 @@ diagnostics, and invoke Portal actions.
 - Generate concise service briefings with available ownership, health, incident, and documentation details.
 - Discover and safely invoke Portal actions with built-in help, dry-run, and confirmation safeguards.
 
-The marketplace also ships **shunt** (Claude Code only for now): a plugin that routes I/O-heavy agent work — bulk file reads and boilerplate generation — to AiKA modes running cheaper worker models, via the Portal CLI actions registry. See [`plugins/shunt/README.md`](plugins/shunt/README.md).
+The marketplace also ships **shunt**: bulk file reading and boilerplate generation through OpenCode GLM-5.3-Flash/max with an Astra/medium lead in Codex, or AiKA modes through the Portal CLI in Claude Code. See [`plugins/shunt/README.md`](plugins/shunt/README.md).
 
 ## Installation
 

@@ -2,7 +2,7 @@
 # Delegate file reading to AiKA bulk-reader mode
 # Usage: bulk-read --question "what does this do?" --paths file1.ts file2.ts
 
-. "$(cd "$(dirname "$0")" && pwd)/lib/aika.sh"
+. "$(cd "$(dirname "$0")" && pwd)/lib/transport.sh"
 
 MODE_NAME="bulk-reader"
 

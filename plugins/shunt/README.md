@@ -1,8 +1,64 @@
 # shunt
 
-A Claude Code plugin that shunts I/O-heavy work to AiKA modes, saving 82-94% of tokens on large file reads and boilerplate generation.
+A plugin that delegates bulk file reads and boilerplate generation. In Codex,
+the lead is Astra at medium effort and the worker is OpenCode
+`zai-coding-plan/glm-5.3-flash` at `max`, using the Z.AI Coding Plan.
+Claude Code keeps the existing AiKA route and read hooks.
 
-## How it works
+## Codex + OpenCode
+
+Requires Codex, Python 3, and OpenCode with Z.AI Coding Plan authentication
+already configured (`opencode auth login`). No Portal instance is needed.
+
+From this repository root:
+
+```bash
+codex plugin marketplace add "$PWD"
+codex plugin add shunt@portal
+plugins/shunt/scripts/codex-shunt -C /path/to/project 'Use shunt for bulk reading and boilerplate generation.'
+```
+
+The launcher selects `gpt-6-astra` and `model_reasoning_effort="medium"` for
+that session without changing global settings. Start a new thread after plugin
+installation. In the Codex app, select Astra / Medium and invoke the installed
+bulk-reader or code-writer skill. The skills explicitly select OpenCode; direct
+script calls still default to AiKA unless `SHUNT_BACKEND=opencode` is set.
+
+```bash
+SHUNT_BACKEND=opencode plugins/shunt/scripts/bulk-read \
+  --question 'Explain validation and name its boundary tests.' \
+  --paths /path/to/project/src/domain.rs
+
+SHUNT_BACKEND=opencode plugins/shunt/scripts/code-write \
+  --spec 'Generate tests matching this reference.' \
+  --reference /path/to/project/tests/existing.rs --target /tmp/generated-tests.rs
+```
+
+Codex keeps planning, decisions, review, and final verification. OpenCode gets
+the selected files through stdin in a fresh temporary working directory, with
+external plugins disabled, tool permissions denied, and sharing disabled.
+It cannot edit the project itself; `code-write --target` writes its completed
+answer. Review a scratch output before applying it to an existing project file.
+OpenCode still loads global configuration and stores local sessions, but shunt
+does not resume them or copy credentials. Each call consumes subscription quota.
+When Codex's sandbox blocks OpenCode's local log/state writes or network access,
+use the normal command approval/escalation flow for the script; do not disable
+the sandbox globally. Provider/auth/quota errors are returned without retries.
+
+The transport rejects errors, incomplete/empty responses, oversized input, and
+responses over 4 MB. `SHUNT_TIMEOUT_SECONDS` bounds each call (default 180);
+`SHUNT_MAX_PAYLOAD_BYTES` applies to both transports. Timeout/interruption kills
+the worker process group. There is no automatic fallback to AiKA or another model.
+
+Codex delegation is skill-driven; the bundled Read/Bash hooks are Claude Code
+hooks, not Codex enforcement. The token-savings figures below measure AiKA,
+not GLM. Verify worker claims against source before relying on them.
+
+Model/effort options follow the [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+and [OpenCode CLI](https://opencode.ai/docs/cli/). OpenCode's installed catalog
+must expose `zai-coding-plan/glm-5.3-flash` with the `max` variant.
+
+## Claude Code + AiKA: how it works
 
 Three layers, from hard gate to soft suggestion:
 
@@ -78,7 +134,8 @@ shunt/
 │   └── code-writer/
 │       └── SKILL.md         # When/how to call code-write
 └── evals/
-    ├── run.sh                # Runs hook + transport evals (51 tests)
+    ├── run.sh                # Runs hook + transport evals
+    ├── opencode-evals.py     # OpenCode routing, errors, timeout, target preservation
     ├── hook-evals.json       # Read hook test cases (17)
     ├── bash-hook-evals.json  # Bash hook test cases (17)
     ├── transport-evals.sh    # scripts/lib/aika.sh against a stubbed CLI (17)
@@ -142,10 +199,11 @@ Fires on every `Bash` tool call. Catches `cat`, `head`, `tail`, `less`, `more` o
 
 ## Configuration
 
-All settings are environment variables — add them to the `env` block in `.claude/settings.json`.
+All settings are environment variables — for Claude Code, add them to the `env` block in `.claude/settings.json`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
+| `SHUNT_BACKEND` | `aika` | `opencode` selects GLM-5.3-Flash/max on the Z.AI Coding Plan |
 | `SHUNT_MIN_LINES` | `350` | Line count above which the Read hook blocks and redirects |
 | `SHUNT_PORTAL_INSTANCE` | CLI default | Portal instance name or URL to invoke against |
 | `PORTAL_CLI_BIN` | `portal-cli`, else `npx` | Override how portal-cli is launched |
