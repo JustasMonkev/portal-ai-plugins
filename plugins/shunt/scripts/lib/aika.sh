@@ -18,11 +18,12 @@
 # invoke-chat input travels through argv. The whole request has to fit in
 # ARG_MAX alongside the environment, and on Linux a single argument is
 # additionally capped at MAX_ARG_STRLEN (128 KiB); macOS has no per-argument
-# cap below its 1 MiB ARG_MAX.
+# cap below its 1 MiB ARG_MAX. CLI workers also source these helpers, but
+# send their payload over stdin and do not need Linux's argv limit.
 if [ -z "${SHUNT_MAX_PAYLOAD_BYTES:-}" ]; then
-  case "$(uname -s)" in
-    Linux) SHUNT_MAX_PAYLOAD_BYTES=120000 ;;
-    *)     SHUNT_MAX_PAYLOAD_BYTES=400000 ;;
+  case "${SHUNT_BACKEND:-aika}:$(uname -s)" in
+    aika:Linux) SHUNT_MAX_PAYLOAD_BYTES=120000 ;;
+    *)          SHUNT_MAX_PAYLOAD_BYTES=400000 ;;
   esac
 fi
 

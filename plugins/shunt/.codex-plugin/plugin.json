@@ -1,0 +1,25 @@
+{
+  "name": "shunt",
+  "version": "0.2.0+codex.20260910164519",
+  "description": "Delegate bulk reading and code generation with a selectable OpenCode or Codex worker, model, and reasoning effort.",
+  "author": {
+    "name": "Spotify"
+  },
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Shunt",
+    "shortDescription": "Astra lead with your choice of worker",
+    "longDescription": "Keep decisions and review in Codex while selecting the worker harness, model, and reasoning effort. Supports OpenCode and Codex; defaults to OpenCode GLM-5.3-Flash/max.",
+    "developerName": "Spotify",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "CLI"
+    ],
+    "defaultPrompt": [
+      "Use shunt with my chosen worker harness, model, and reasoning effort while keeping decisions and review in Codex."
+    ]
+  }
+}

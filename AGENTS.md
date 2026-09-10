@@ -5,7 +5,7 @@ This repository packages Spotify Portal workflows for Claude Code, Codex, and Cu
 ## Repository structure
 
 - `skills/` contains the canonical Portal workflow instructions.
-- `plugins/shunt/` contains the shunt plugin (Claude Code only for now): scripts, skills, hooks, and evals for routing I/O-heavy work to AiKA modes.
+- `plugins/shunt/` contains the shunt plugin: scripts, skills, and evals for OpenCode/Codex workers and AiKA modes, plus Claude Code read hooks.
 - `.claude-plugin/`, `.codex-plugin/`, and `.cursor-plugin/` contain host manifests.
 - `assets/` contains shared Portal branding and product imagery.
 - `.claude-plugin/marketplace.json` exposes the repository as a Claude Code marketplace.
